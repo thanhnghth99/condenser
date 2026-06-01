@@ -10,12 +10,13 @@ disp(cond_specs);
 sh_solver = SuperheatedRegion(cond_specs);
 disp(sh_solver);
 
-[w_sh, P_out_sh, T_sat_v, h_v] = sh_solver.defineRegion();
+[w_sh, P_out_sh, dP_sh, T_sat_v, h_v] = sh_solver.defineRegion();
 % Print the results to the console professionally
 fprintf('\n=== SUPERHEATED (SH) REGION SIMULATION RESULTS ===\n');
 fprintf('1. Area fraction (w_sh)            : %.2f %%\n', w_sh * 100);
 fprintf('2. Outlet pressure (P_out_sh)      : %.2f Pa\n', P_out_sh);
-fprintf('3. Saturated temperature (T_sat_v) : %.2f K\n', T_sat_v);
+fprintf('3. Pressure drop (dP_sh)           : %.2f Pa\n', dP_sh);
+fprintf('4. Saturated temperature (T_sat_v) : %.2f K\n', T_sat_v);
 fprintf('4. Saturated vapor enthalpy (h_v)  : %.2f J/kg\n', h_v);
 fprintf('==================================================\n\n');
 

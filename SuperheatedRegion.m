@@ -1,5 +1,6 @@
 classdef SuperheatedRegion
     properties
+        % Reference to the condenser model to access inlet conditions and geometry
         Model
     end
 
@@ -8,7 +9,7 @@ classdef SuperheatedRegion
             obj.Model = condenser_model;
         end
         
-        function [w_sh, P_out_sh, T_sat_v, h_v] = defineRegion(obj)
+        function [w_sh, P_out_sh, dP_sh, T_sat_v, h_v] = defineRegion(obj)
 
             % w is the ratio of the area of ​​each region to the total area of ​​the pipe
             % Lower bound of area fraction
@@ -94,7 +95,7 @@ classdef SuperheatedRegion
         function dP_sh = PressureDropSH(obj, w_sh, rho, mu)
             L_sh = w_sh * obj.Model.H_cond;
             if L_sh <= 1e-6
-                dP_sh = 0;
+                dP_sh = 0; % No superheated region, so no pressure drop
                 return;
             end
 
