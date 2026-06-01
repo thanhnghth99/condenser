@@ -4,12 +4,45 @@ classdef ThermoProp
     methods (Static)
         % Calculate saturated temperature [K]
         function T_sat = get_T_sat(P, x, fluid)
-            T_sat = py.CoolProp.CoolProp.PropsSI('T', 'P', P, 'Q', x, fluid);            
+            T_sat = py.CoolProp.CoolProp.PropsSI('T', 'P', P, 'Q', x, fluid);
         end
 
-        % Calculate saturated specific enthalpy [J/kg]
-        function h_sat = get_h_sat(P, x, fluid)
-            h_sat = py.CoolProp.CoolProp.PropsSI('H', 'P', P, 'Q', x, fluid);            
+        % Calculate saturated vapor thermodynamic properties
+        function vapor_props = get_SatVaporProps(P, fluid)
+            
+            % Viscosity [Pa.s]
+            vapor_props.mu_v = py.CoolProp.CoolProp.PropsSI('V', 'P', P, 'Q', 1, fluid);
+
+            % Thermal conductivity [W/m.K]
+            vapor_props.k_v = py.CoolProp.CoolProp.PropsSI('L', 'P', P, 'Q', 1, fluid);
+
+            % Mass density [kg/m^3]
+            vapor_props.rho_v = py.CoolProp.CoolProp.PropsSI('D', 'P', P, 'Q', 1, fluid);
+
+            % Specific enthalpy [J/kg]
+            vapor_props.h_v = py.CoolProp.CoolProp.PropsSI('H', 'P', P, 'Q', 1, fluid);
+
+            % Prandtl number
+            vapor_props.Pr_v = py.CoolProp.CoolProp.PropsSI('PRANDTL', 'P', P, 'Q', 1, fluid);
+        end
+
+        % Calculate saturated liquid thermodynamic properties
+        function liquid_props = get_SatLiquidProps(P, fluid)
+            
+            % Viscosity [Pa.s]
+            liquid_props.mu_l = py.CoolProp.CoolProp.PropsSI('V', 'P', P, 'Q', 0, fluid);
+
+            % Thermal conductivity [W/m.K]
+            liquid_props.k_l = py.CoolProp.CoolProp.PropsSI('L', 'P', P, 'Q', 0, fluid);
+
+            % Mass density [kg/m^3]
+            liquid_props.rho_l = py.CoolProp.CoolProp.PropsSI('D', 'P', P, 'Q', 0, fluid);
+
+            % Specific enthalpy [J/kg]
+            liquid_props.h_l = py.CoolProp.CoolProp.PropsSI('H', 'P', P, 'Q', 0, fluid);
+
+            % Prandtl number
+            liquid_props.Pr_l = py.CoolProp.CoolProp.PropsSI('PRANDTL', 'P', P, 'Q', 0, fluid);
         end
 
         % Calculate single phase properties

@@ -47,12 +47,13 @@ classdef SuperheatedRegion
 
                 if P_out_sh < 101325
                     P_out_sh = 101325;
+                    dP_sh = obj.Model.Inlet.P_ref_in - P_out_sh;
                     warning("The calculated pressure is negative. It's been forced down to 1 atm to prevent errors.");
                 end
                 
                 % Step 3: Update required energy (Q_req)
                 T_sat_v = ThermoProp.get_T_sat(P_out_sh, 1, Refrig);
-                h_v = ThermoProp.get_h_sat(P_out_sh, 1, Refrig);
+                h_v = ThermoProp.get_SatVaporProps(P_out_sh, Refrig).h_v;
 
                 % Required heat transfer to cool the refrigerant down to the dew point
                 Q_req = obj.Model.Inlet.m_ref * (obj.Model.Inlet.h_ref_in - h_v);
@@ -103,7 +104,11 @@ classdef SuperheatedRegion
             Re_Dh = obj.Model.G * obj.Model.D_h / mu;
 
             % Friction factor f
-            f = 1 / (1.58 * log(Re_Dh) - 3.28)^2;
+            if Re_Dh < 2300
+                f = 64 / Re_Dh; % Laminar flow
+            else
+                f = 1 / (1.58 * log(Re_Dh) - 3.28)^2; % Turbulent flow
+            end
 
             % Tube length of superheated region
             L_sh = w_sh * obj.Model.H_cond;
@@ -144,13 +149,19 @@ classdef SuperheatedRegion
             % Thermal conductivity
             k_sh = props.k;
 
-            % Friction factor f
-            f = 1 / (1.58 * log(Re_Dh) - 3.28)^2;
+            if Re_Dh < 2300
+                Nu_sh = 3.66 * 1.5; % Laminar flow constant Nusselt
+                h_sh = Nu_sh * (k_sh / D_h);
+            else
+                % Friction factor f
+                f = 1 / (1.58 * log(Re_Dh) - 3.28)^2;
+                % Refrigerant heat transfer coefficient h_sh [W/m^2.K]
+                numerator = (f / 2) * Re_Dh * Pr_sh;
+                denominator = 1.07 + 12.7 * (f / 2)^0.5 * (Pr_sh^(2/3) - 1);
+                h_sh = (numerator / denominator) * (k_sh / D_h);                
+            end
 
-            % Refrigerant heat transfer coefficient h_sh [W/m^2.K]
-            numerator = (f / 2) * Re_Dh * Pr_sh;
-            denominator = 1.07 + 12.7 * (f / 2)^0.5 * (Pr_sh^(2/3) - 1);
-            h_sh = (numerator / denominator) * (k_sh / D_h);
+
 
             UA_sh = obj.Model.UA(w_sh, h_sh);
             NTU_sh = UA_sh / C_min;
