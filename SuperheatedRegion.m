@@ -104,11 +104,8 @@ classdef SuperheatedRegion
             Re_Dh = obj.Model.G * obj.Model.D_h / mu;
 
             % Friction factor f
-            if Re_Dh < 2300
-                f = 64 / Re_Dh; % Laminar flow
-            else
-                f = 1 / (1.58 * log(Re_Dh) - 3.28)^2; % Turbulent flow
-            end
+            f = 1 / (1.58 * log(Re_Dh) - 3.28)^2; % Turbulent flow
+
 
             % Tube length of superheated region
             L_sh = w_sh * obj.Model.H_cond;
@@ -149,18 +146,12 @@ classdef SuperheatedRegion
             % Thermal conductivity
             k_sh = props.k;
 
-            if Re_Dh < 2300
-                Nu_sh = 3.66 * 1.5; % Laminar flow constant Nusselt
-                h_sh = Nu_sh * (k_sh / D_h);
-            else
-                % Friction factor f
-                f = 1 / (1.58 * log(Re_Dh) - 3.28)^2;
-                % Refrigerant heat transfer coefficient h_sh [W/m^2.K]
-                numerator = (f / 2) * Re_Dh * Pr_sh;
-                denominator = 1.07 + 12.7 * (f / 2)^0.5 * (Pr_sh^(2/3) - 1);
-                h_sh = (numerator / denominator) * (k_sh / D_h);                
-            end
-
+            % Friction factor f
+            f = 1 / (1.58 * log(Re_Dh) - 3.28)^2;
+            % Refrigerant heat transfer coefficient h_sh [W/m^2.K]
+            numerator = (f / 2) * Re_Dh * Pr_sh;
+            denominator = 1.07 + 12.7 * (f / 2)^0.5 * (Pr_sh^(2/3) - 1);
+            h_sh = (numerator / denominator) * (k_sh / D_h);
 
 
             UA_sh = obj.Model.UA(w_sh, h_sh);

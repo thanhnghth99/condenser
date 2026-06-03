@@ -35,126 +35,53 @@ classdef TwoPhaseRegion
                 step = step + 1;
                 fprintf('Loop %d\n', step);
 
-                % --- BƯỚC 1: KIỂM TRA GIỚI HẠN CHIỀU DÀI VẬT LÝ ---
-                L_avail = H_cond * (1 - w_sh) - L_acc;
-                if L_avail <= 1e-6
-                    warning('Condenser length is physically not enough to fully condense the refrigerant. Region truncated.');
+                if L_acc >= H_cond * (1 - w_sh)
+                    warning('Condenser length is not enough to fully condense the refrigerant. The two-phase region is truncated at the end of the condenser.');
                     break;
                 end
 
-                % Ép bước nhảy không được vượt quá chiều dài còn lại của ống
-                dz_step = min(dz_base, L_avail);
-
-                % Tính toán diện tích cho riêng bước nhảy này
-                dA_ref_step = obj.Model.Inlet.A_tube_total / H_cond * dz_step; 
-                dA_air_step = obj.Model.Inlet.A_surface_total / H_cond * dz_step; 
-
                 if P_i < 101325
-                    error("The calculated pressure is negative. Flow crashed!");
+                    error("The calculated pressure is negative. Flow crashed! Please check the input conditions and model parameters.");
                 end
                 
+                % Thermodynamic properties of the refrigerant at the current state
                 T_sat_i = ThermoProp.get_T_sat(P_i, x_i, Refrig);
+
                 rho_l_i = ThermoProp.get_SatLiquidProps(P_i, Refrig).rho_l;
                 rho_v_i = ThermoProp.get_SatVaporProps(P_i, Refrig).rho_v;
+
                 mu_l_i = ThermoProp.get_SatLiquidProps(P_i, Refrig).mu_l;
+
                 Pr_l_i = ThermoProp.get_SatLiquidProps(P_i, Refrig).Pr_l;
+
                 k_l_i = ThermoProp.get_SatLiquidProps(P_i, Refrig).k_l;
+
                 h_l_i = ThermoProp.get_SatLiquidProps(P_i, Refrig).h_l;
                 h_v_i = ThermoProp.get_SatVaporProps(P_i, Refrig).h_v;
 
-                % Truyền biến dz_step động vào hàm tính nhiệt
-                d_QeNTU_i = obj.HeatTransfer_eNTU(x_i, P_i, T_sat_i, mu_l_i, Pr_l_i, k_l_i, dz_step, dA_ref_step, dA_air_step);
+                % Calculate the actual heat transfer for 1 element using e-NTU method
+                d_QeNTU_i = obj.HeatTransfer_eNTU(x_i, P_i, T_sat_i, mu_l_i, Pr_l_i, k_l_i, dz, dA_ref, dA_air);
 
+                % Update x vapor quality based on the actual heat transfer
                 dx_i = d_QeNTU_i / (m_ref * abs(h_v_i - h_l_i));
+                x_next = x_i - dx_i;
+
+                % Calculate pressure drop and update outlet pressure
+                [dP_total_i, dP_fr_i, dP_grav_i, dP_dec_i] = obj.PressureDropTP(P_i, rho_l_i, rho_v_i, mu_l_i, x_i, x_next, dz, Refrig);
+                P_next = P_i - dP_total_i;
                 
-                % --- BƯỚC 2: OVERSHOOT PROTECTION (NỘI SUY KHI x < 0) ---
-                if (x_i - dx_i) < 0
-                    % Tính tỷ lệ chiều dài chính xác để x vừa chạm đúng 0
-                    fraction = x_i / dx_i;
-                    dz_exact = fraction * dz_step;
-                    
-                    % Cập nhật lại diện tích cho đoạn cắt nhỏ này
-                    dA_ref_exact = obj.Model.Inlet.A_tube_total / H_cond * dz_exact;
-                    dA_air_exact = obj.Model.Inlet.A_surface_total / H_cond * dz_exact;
-                    
-                    % Tính lại nhiệt lượng và sụt áp cho tỷ lệ fraction chính xác
-                    d_QeNTU_i = obj.HeatTransfer_eNTU(x_i, P_i, T_sat_i, mu_l_i, Pr_l_i, k_l_i, dz_exact, dA_ref_exact, dA_air_exact);
-                    x_next = 0; % Chốt hạ x = 0 một cách mượt mà
-                    
-                    [dP_total_i, dP_fr_i, dP_grav_i, dP_dec_i] = obj.PressureDropTP(P_i, rho_l_i, rho_v_i, mu_l_i, x_i, x_next, dz_exact, Refrig);
-                    P_next = P_i - dP_total_i;
-                    L_acc = L_acc + dz_exact;
-                else
-                    % Nếu chưa chạm biên, chạy bình thường
-                    x_next = x_i - dx_i;
-                    [dP_total_i, dP_fr_i, dP_grav_i, dP_dec_i] = obj.PressureDropTP(P_i, rho_l_i, rho_v_i, mu_l_i, x_i, x_next, dz_step, Refrig);
-                    P_next = P_i - dP_total_i;
-                    L_acc = L_acc + dz_step;
-                end
-                
-                % Update variables
+                % Update variables for the next iteration
                 x_i = x_next;
                 P_i = P_next;
-                Q_eNTU_tp = Q_eNTU_tp + d_QeNTU_i; 
+                L_acc = L_acc + dz;
+                Q_eNTU_tp = Q_eNTU_tp + d_QeNTU_i; % Store the actual heat transfer for the current element (can be used for post-processing or debugging)
             end
-            
-            w_tp = L_acc / H_cond; 
-            P_out_tp = P_i; 
-            T_sat_l = ThermoProp.get_T_sat(P_out_tp, 0, Refrig); 
-            h_l = ThermoProp.get_SatLiquidProps(P_out_tp, Refrig).h_l; 
+            % Output variables after convergence or reaching the end of the condenser
+            w_tp = L_acc / H_cond; % Area fraction of the two-phase region
+            P_out_tp = P_i; % Outlet pressure at the end of the two-phase region
+            T_sat_l = ThermoProp.get_T_sat(P_out_tp, 0, Refrig); % Saturated temperature at the outlet of the two-phase region (saturated liquid)
+            h_l = ThermoProp.get_SatLiquidProps(P_out_tp, Refrig).h_l; % Saturated liquid enthalpy at the outlet of the two-phase region
         end
-        %     % START SPATIAL MARCHING LOOP
-        %     while x_i > 0
-        %         step = step + 1;
-        %         fprintf('Loop %d\n', step);
-
-        %         if L_acc >= H_cond * (1 - w_sh)
-        %             warning('Condenser length is not enough to fully condense the refrigerant. The two-phase region is truncated at the end of the condenser.');
-        %             break;
-        %         end
-
-        %         if P_i < 101325
-        %             error("The calculated pressure is negative. Flow crashed! Please check the input conditions and model parameters.");
-        %         end
-                
-        %         % Thermodynamic properties of the refrigerant at the current state
-        %         T_sat_i = ThermoProp.get_T_sat(P_i, x_i, Refrig);
-
-        %         rho_l_i = ThermoProp.get_SatLiquidProps(P_i, Refrig).rho_l;
-        %         rho_v_i = ThermoProp.get_SatVaporProps(P_i, Refrig).rho_v;
-
-        %         mu_l_i = ThermoProp.get_SatLiquidProps(P_i, Refrig).mu_l;
-
-        %         Pr_l_i = ThermoProp.get_SatLiquidProps(P_i, Refrig).Pr_l;
-
-        %         k_l_i = ThermoProp.get_SatLiquidProps(P_i, Refrig).k_l;
-
-        %         h_l_i = ThermoProp.get_SatLiquidProps(P_i, Refrig).h_l;
-        %         h_v_i = ThermoProp.get_SatVaporProps(P_i, Refrig).h_v;
-
-        %         % Calculate the actual heat transfer for 1 element using e-NTU method
-        %         d_QeNTU_i = obj.HeatTransfer_eNTU(x_i, P_i, T_sat_i, mu_l_i, Pr_l_i, k_l_i, dz, dA_ref, dA_air);
-
-        %         % Update x vapor quality based on the actual heat transfer
-        %         dx_i = d_QeNTU_i / (m_ref * abs(h_v_i - h_l_i));
-        %         x_next = x_i - dx_i;
-
-        %         % Calculate pressure drop and update outlet pressure
-        %         [dP_total_i, dP_fr_i, dP_grav_i, dP_dec_i] = obj.PressureDropTP(P_i, rho_l_i, rho_v_i, mu_l_i, x_i, x_next, dz, Refrig);
-        %         P_next = P_i - dP_total_i;
-                
-        %         % Update variables for the next iteration
-        %         x_i = x_next;
-        %         P_i = P_next;
-        %         L_acc = L_acc + dz;
-        %         Q_eNTU_tp = Q_eNTU_tp + d_QeNTU_i; % Store the actual heat transfer for the current element (can be used for post-processing or debugging)
-        %     end
-        %     % Output variables after convergence or reaching the end of the condenser
-        %     w_tp = L_acc / H_cond; % Area fraction of the two-phase region
-        %     P_out_tp = P_i; % Outlet pressure at the end of the two-phase region
-        %     T_sat_l = ThermoProp.get_T_sat(P_out_tp, 0, Refrig); % Saturated temperature at the outlet of the two-phase region (saturated liquid)
-        %     h_l = ThermoProp.get_SatLiquidProps(P_out_tp, Refrig).h_l; % Saturated liquid enthalpy at the outlet of the two-phase region
-        % end
     end
 
     methods (Access = private)
