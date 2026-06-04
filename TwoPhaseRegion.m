@@ -53,7 +53,7 @@ classdef TwoPhaseRegion
                 fprintf('Iteration %d: L_n = %.6f m\n', iter, L_n);
 
                 % Q_eNTU_n from e-NTU method
-                Q_eNTU_n = obj.HeatTransfer_eNTU(L_sh, L_n, P_in_tp, T_sat, props);
+                Q_eNTU_n = obj.HeatTransfer_eNTU(L_n, P_in_tp, T_sat, props);
                 fprintf('Q_eNTU_n: %.2f W\n', Q_eNTU_n);
 
                 % The error between required heat transfer and e-NTU calculated heat transfer
@@ -73,12 +73,12 @@ classdef TwoPhaseRegion
                 % Ensure Ln_plus and Ln_minus are within physical bounds to avoid unphysical results
                 if Ln_plus >= L_avail
                     Ln_minus = L_n - dL;
-                    f_Ln_minus = obj.HeatTransfer_eNTU(L_sh, Ln_minus, P_in_tp, T_sat, props) - Q_req;
+                    f_Ln_minus = obj.HeatTransfer_eNTU(Ln_minus, P_in_tp, T_sat, props) - Q_req;
                     df_dLn = (f_Ln - f_Ln_minus) / dL;
                     fprintf('Using BACKWARD difference: Ln_minus = %.6f m, f_Ln_minus = %.2f W\n', Ln_minus, f_Ln_minus);
                     fprintf('df_dLn: %.2f W/m\n', df_dLn);
                 else
-                    f_Ln_plus = obj.HeatTransfer_eNTU(L_sh, Ln_plus, P_in_tp, T_sat, props) - Q_req;
+                    f_Ln_plus = obj.HeatTransfer_eNTU(Ln_plus, P_in_tp, T_sat, props) - Q_req;
                     df_dLn = (f_Ln_plus - f_Ln) / dL;
                     fprintf('Using FORWARD difference: Ln_plus = %.6f m, f_Ln_plus = %.2f W\n', Ln_plus, f_Ln_plus);
                     fprintf('df_dLn: %.2f W/m\n', df_dLn);
@@ -92,14 +92,6 @@ classdef TwoPhaseRegion
                 % Update L_n using Newton-Raphson formula
                 L_next = L_n - f_Ln / df_dLn;
                 fprintf('L_next (before bounds check): %.6f m\n', L_next);
-
-                % step = f_Ln / df_dLn;
-                % inner_iter = 0;
-                % while (L_next <= 0 || L_next >= L_avail) && (inner_iter < 10)
-                %     step = step / 2;
-                %     L_next = L_n - step;
-                %     inner_iter = inner_iter + 1;
-                % end
 
                 % Ensure L_next is within physical bounds [0, L_avail]
                 if L_next <= 0
@@ -127,13 +119,13 @@ classdef TwoPhaseRegion
 
     methods (Access = private)
         % Function to calculate the actual heat transfer capacity (Q_eNTU) based on the NTU method for 1 element
-        function Q_eNTU = HeatTransfer_eNTU(obj, L_sh, L_tp, P, T_sat, props)
+        function Q_eNTU = HeatTransfer_eNTU(obj, L_tp, P, T_sat, props)
             if L_tp <= 1e-6
                 Q_eNTU = 0;
                 return;
             end
 
-            w_tp = L_tp / (obj.Model.W_cond - L_sh); % Area fraction of the two-phase region
+            w_tp = L_tp / (obj.Model.W_cond); % Area fraction of the two-phase region
 
             % Air side
             % Specific heat capacity of air [J/kg.K] for 1 element
@@ -185,6 +177,5 @@ classdef TwoPhaseRegion
             % Calculate the actual heat transfer
             Q_eNTU = epsilon * C_air * (T_sat - T_air_in);
         end
-
     end
 end

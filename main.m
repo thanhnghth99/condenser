@@ -4,7 +4,7 @@ clc;
 Refrigerant = 'R134a';
 P_ref_in = 1569064; % Pa
 T_ref_in = 355.1500; % K
-m_ref = 0.02273; % kg/s
+m_ref = 0.015; % kg/s --> 900 - 1000 rpm
 A_tube_total = 0.6977; % m^2
 
 % Air side
@@ -47,7 +47,7 @@ fprintf('==================================================\n\n');
 
 
 % TWO-PHASE (TP) REGION SIMULATION
-% Initialize the Two-Phase solver
+% Initialize the Two-Phase Region solver
 tp_solver = TwoPhaseRegion(cond_specs);
 disp(tp_solver);
 
@@ -64,3 +64,57 @@ fprintf('6. Heat Transfer Capacity (Q_tp)        : %.2f W\n', Q_eNTU_tp);
 fprintf('==================================================\n\n');
 
 
+% SUBCOOLED (SC) REGION SIMULATION
+% Initialize the Subcooled Region solver
+sc_solver = SubCooledRegion(cond_specs);
+disp(sc_solver);
+
+[L_sc, P_out_sc, T_out_sc, Q_eNTU_sc, dP_sc, dT_sc] = sc_solver.defineRegion(L_sh, L_tp, P_out_tp, T_sat);
+
+% Print the results to the console professionally
+fprintf('\n=== SUBCOOLED (SC) REGION SIMULATION RESULTS ===\n');
+fprintf('1. Subcooled region length (L_sc)       : %.4f m\n', L_sc);
+fprintf('2. Outlet pressure (P_out_sc)           : %.2f Pa\n', P_out_sc);
+fprintf('3. Subcooled temperature (T_sc_out)     : %.2f K\n', T_out_sc);
+fprintf('4. Pressure drop (dP_sc)                : %.2f J/kg\n', dP_sc);
+fprintf('5. Temperature drop (dT_sc)             : %.2f J/kg\n', dT_sc);
+fprintf('6. Heat Transfer Capacity (Q_sc)        : %.2f W\n', Q_eNTU_sc);
+fprintf('==================================================\n\n');
+
+
+% =========================================================================
+% TỔNG KẾT TOÀN BỘ DÀN NGƯNG (OVERALL CONDENSER PERFORMANCE)
+% =========================================================================
+
+% 1. Tính tổng công suất truyền nhiệt
+Q_total_condenser = Q_eNTU_sh + Q_eNTU_tp + Q_eNTU_sc;
+
+% 2. Tính tổng tổn thất áp suất (Total Pressure Drop)
+dP_total = dP_sh + (P_out_sh - P_out_tp) + dP_sc; % Vùng 2 pha coi như dP ~ 0 hoặc lấy P_in - P_out
+
+% In kết quả ra màn hình
+fprintf('\n==================================================\n');
+fprintf('    OVERALL CONDENSER PERFORMANCE SUMMARY\n');
+fprintf('==================================================\n');
+fprintf('1. Total Heat Transfer Capacity (Q_tot): %.2f W\n', Q_total_condenser);
+fprintf('2. Total Pressure Drop (dP_tot)        : %.2f Pa\n', dP_total);
+fprintf('3. Final Outlet Temperature            : %.2f K (%.2f oC)\n', T_out_sc, T_out_sc - 273.15);
+fprintf('4. Final Outlet Pressure               : %.2f Pa\n', P_out_sc);
+fprintf('==================================================\n\n');
+
+
+% KIỂM TRA CHÉO BẰNG CÂN BẰNG ENTHALPY
+% Lấy enthalpy tại cổng vào dàn ngưng
+h_in_total = inlet_data.h_ref_in;
+
+% Tính enthalpy tại cổng ra cuối cùng (trạng thái lỏng quá lạnh)
+props_out_final = ThermoProp.get_SinglePhaseProps(P_out_sc, T_out_sc, Refrigerant);
+h_out_final = props_out_final.h;
+
+% Tính tổng nhiệt lượng theo cân bằng năng lượng vĩ mô
+Q_enthalpy_balance = m_ref * (h_in_total - h_out_final);
+
+fprintf('>> CROSS-CHECK VALIDATION:\n');
+fprintf('- Q calculated by Zone-by-Zone (e-NTU) : %.2f W\n', Q_total_condenser);
+fprintf('- Q calculated by Global Enthalpy Drop : %.2f W\n', Q_enthalpy_balance);
+fprintf('- Error difference                     : %.4f W\n', abs(Q_total_condenser - Q_enthalpy_balance));
