@@ -75,7 +75,7 @@ classdef SuperheatedRegion
                 L_next = L_n - f_Ln / df_dLn;
 
                 % Ensure L_next is within physical bounds [0, L_total]
-                if L_next < 0
+                if L_next <= 0
                     warning('Superheated region length became negative. Setting to a small positive value.');
                     L_next = 1e-5 * L_total; % Set to a small positive value to avoid zero length
                 elseif L_next >= L_total
@@ -121,6 +121,11 @@ classdef SuperheatedRegion
 
         % Heat transfer using e-NTU method
         function Q_eNTU = HeatTransfer_eNTU(obj, L_sh, props)
+            if L_sh <= 1e-6
+                Q_eNTU = 0;
+                return;
+            end
+
             w_sh = L_sh / obj.Model.W_cond; % Area fraction of superheated region
 
             % Air side
