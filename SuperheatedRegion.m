@@ -20,10 +20,6 @@ classdef SuperheatedRegion
 
             h_sat_v = ThermoProp.get_SatVaporProps(P_ref_in, Refrig).h_v;
 
-            % Air inlet conditions
-            T_air_in = obj.Model.Inlet.T_air_in;
-            m_air_in = obj.Model.Inlet.m_air_in;
-
             props = ThermoProp.get_SinglePhaseProps(P_ref_in, T_ref_in, Refrig);
 
             % 1. Required rejected heat transfer rate to saturated vapor (Q_req)
@@ -117,11 +113,15 @@ classdef SuperheatedRegion
             % Air side
             % Specific heat capacity of air [J/kg.K]
             cp_air = 1005;
-            C_air = w_sh * obj.Model.Inlet.m_air_in * cp_air;
+            T_air_in = obj.Model.Inlet.T_air_in;
+            m_air_in = obj.Model.Inlet.m_air_in;
+            C_air = w_sh * m_air_in * cp_air;
 
             % Refrigerant side
             % Specific heat capacity of refrigerant
-            C_r134a = obj.Model.Inlet.m_ref * props.cp;
+            T_ref_in = obj.Model.Inlet.T_ref_in;
+            m_ref = obj.Model.Inlet.m_ref;
+            C_r134a = m_ref * props.cp;
 
             % Determine C_min, C_max and specific heat capacity ratio C_r
             C_min = min(C_air, C_r134a);
@@ -150,7 +150,7 @@ classdef SuperheatedRegion
             NTU_sh = UA_sh / C_min;
             epsilon = 1 - exp((NTU_sh^0.22 / C_r) * (exp(-C_r * NTU_sh^0.78) - 1));
 
-            Q_eNTU = epsilon * C_min * (obj.Model.Inlet.T_ref_in - obj.Model.Inlet.T_air_in);
+            Q_eNTU = epsilon * C_min * (T_ref_in - T_air_in);
         end
     end
 end
