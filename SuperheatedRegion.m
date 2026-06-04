@@ -9,7 +9,7 @@ classdef SuperheatedRegion
             obj.Model = condenser_model;
         end
         
-        function [L_sh, P_out_sh, dP_sh, T_sat_v, h_v, Q_eNTU_sh] = defineRegion(obj)
+        function [L_sh, P_out_sh, dP_sh, T_sat_v, h_sat_v, Q_eNTU_sh] = defineRegion(obj)
 
             % Refrigerant inlet conditions
             P_ref_in = obj.Model.Inlet.P_ref_in;
@@ -34,18 +34,18 @@ classdef SuperheatedRegion
             % Maximun iterations to prevent infinite loops (Failed to convergence)
             iter_max = 50;
             
-            dL = 1e-6;
+            dL = 1e-5;
             converged = false;
 
             % 3. Newton-Raphson loop
             for iter = 1:iter_max
                 fprintf('Iteration %d: L_sh = %.6f m\n', iter, L_n);
 
-                % Q_eNTU_sh from e-NTU method
-                Q_eNTU_sh = obj.HeatTransfer_eNTU(L_n, props);
+                % Q_eNTU_n from e-NTU method
+                Q_eNTU_n = obj.HeatTransfer_eNTU(L_n, props);
 
                 % The error between required heat transfer and e-NTU calculated heat transfer
-                f_Ln = Q_eNTU_sh - Q_req;
+                f_Ln = Q_eNTU_n - Q_req;
 
                 % Check for convergence
                 if abs(f_Ln) < epsilon_tol
@@ -54,12 +54,21 @@ classdef SuperheatedRegion
                 end
 
                 % Numerical derivative df/dL using central difference
-                f_Ln_plus = obj.HeatTransfer_eNTU(L_n + dL, props) - Q_req;
-                df_dLn = (f_Ln_plus - f_Ln) / dL;
+                Ln_plus = L_n + dL;
+                % Ensure Ln_plus does not exceed total condenser length to avoid unphysical results
+                if Ln_plus >= L_total
+                    % If Ln_plus exceeds total length, use backward difference instead
+                    Ln_minus = L_n - dL;
+                    f_Ln_minus = obj.HeatTransfer_eNTU(Ln_minus, props) - Q_req;
+                    df_dLn = (f_Ln - f_Ln_minus) / dL;
+                else
+                    f_Ln_plus = obj.HeatTransfer_eNTU(Ln_plus, props) - Q_req;
+                    df_dLn = (f_Ln_plus - f_Ln) / dL;
+                end
 
                 % Avoid division by zero (Singularity)
                 if abs(df_dLn) < 1e-10
-                    df_dLn = sign(df_dLn) * 1e-10;
+                    df_dLn = sign(df_dLn + 1e-20) * 1e-10;
                 end
 
                 % Update L_n using Newton-Raphson formula
@@ -67,28 +76,32 @@ classdef SuperheatedRegion
 
                 % Ensure L_next is within physical bounds [0, L_total]
                 if L_next < 0
-                    L_next = 0;
-                elseif L_next > L_total
-                    warning('Superheated region length exceeded total condenser length. Stopping iteration.');
-                    break;
+                    warning('Superheated region length became negative. Setting to a small positive value.');
+                    L_next = 1e-5 * L_total; % Set to a small positive value to avoid zero length
+                elseif L_next >= L_total
+                    warning('Superheated region length exceeded total condenser length. Setting to maximum possible length.');
+                    L_next = 0.99 * L_total;
                 end
                 L_n = L_next;
             end
 
-            if iter == iter_max
+            if ~converged
                 % Warning if the loop reachs the iteration limit without converging
-                warning('Superheated region FAILED to converge!');                
+                warning('Superheated region FAILED to converge after %d iterations!', iter_max);                
             end
 
             L_sh = L_n;
-            % Calculate outlet pressure and pressure drop
+            Q_eNTU_sh = Q_eNTU_n;
+
+            % 4. Calculate outlet pressure and pressure drop
             rho_sh = props.rho;
             mu_sh = props.mu;
             dP_sh = obj.PressureDropSH(L_sh, rho_sh, mu_sh);
             P_out_sh = P_ref_in - dP_sh;
-            % Saturated vapor temperature and enthalpy at outlet pressure
+
+            % 5. Saturated vapor temperature and enthalpy at outlet pressure
             T_sat_v = ThermoProp.get_T_sat(P_out_sh, 1, Refrig);
-            h_v = ThermoProp.get_SatVaporProps(P_out_sh, Refrig).h_v;
+            h_sat_v = ThermoProp.get_SatVaporProps(P_out_sh, Refrig).h_v;
         end
     end
 
