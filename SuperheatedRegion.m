@@ -9,118 +9,110 @@ classdef SuperheatedRegion
             obj.Model = condenser_model;
         end
         
-        function [w_sh, P_out_sh, dP_sh, T_sat_v, h_v] = defineRegion(obj)
+        function [L_sh, P_out_sh, dP_sh, T_sat_v, h_v, Q_eNTU_sh] = defineRegion(obj)
 
-            % w is the ratio of the area of ​​each region to the total area of ​​the pipe
-            % Lower bound of area fraction
-            w_min = 0;
-            % Upper bound of area fraction
-            w_max = 1;
-
-            % Absolute tolerance for heat transfer error [w]
-            tol = 0.0001;
-
-            % Maximun iterations to prevent infinite loops (Failed to convergence)
-            iter_max = 100;
-
-            % Loop counter
-            iter = 0;
-
+            % Refrigerant inlet conditions
             P_ref_in = obj.Model.Inlet.P_ref_in;
             T_ref_in = obj.Model.Inlet.T_ref_in;
+            h_ref_in = obj.Model.Inlet.h_ref_in;
+            m_ref = obj.Model.Inlet.m_ref;
             Refrig = obj.Model.Inlet.Refrigerant;
 
-            % START BISECTION LOOP
-            while iter < iter_max
-                iter = iter + 1;
-                fprintf('Loop %d\n', iter);
+            h_sat_v = ThermoProp.get_SatVaporProps(P_ref_in, Refrig).h_v;
 
-                % Step 1: Guess superheated region area fraction
-                w_sh = (w_min + w_max) / 2;
+            % Air inlet conditions
+            T_air_in = obj.Model.Inlet.T_air_in;
+            m_air_in = obj.Model.Inlet.m_air_in;
 
-                % Step 2: Calculate frictional pressure drop
-                sh_props = ThermoProp.get_SinglePhaseProps(P_ref_in, T_ref_in, Refrig);
+            props = ThermoProp.get_SinglePhaseProps(P_ref_in, T_ref_in, Refrig);
 
-                % Calculate pressure drop and update outlet pressure
-                dP_sh = obj.PressureDropSH(w_sh, sh_props.rho, sh_props.mu);
-                P_out_sh = obj.Model.Inlet.P_ref_in - dP_sh;
+            % 1. Required rejected heat transfer rate to saturated vapor (Q_req)
+            Q_req = m_ref * (h_ref_in - h_sat_v);
 
-                if P_out_sh < 101325
-                    P_out_sh = 101325;
-                    dP_sh = obj.Model.Inlet.P_ref_in - P_out_sh;
-                    warning("The calculated pressure is negative. It's been forced down to 1 atm to prevent errors.");
-                end
-                
-                % Step 3: Update required energy (Q_req)
-                T_sat_v = ThermoProp.get_T_sat(P_out_sh, 1, Refrig);
-                h_v = ThermoProp.get_SatVaporProps(P_out_sh, Refrig).h_v;
+            % 2. Initial guess for Newton-Raphson method
+            L_total = obj.Model.W_cond;
+            % Initial guess for superheated region length
+            L_n = 0.1 * L_total;
+            % Absolute tolerance for heat transfer error [w]
+            epsilon_tol = 0.01;
+            % Maximun iterations to prevent infinite loops (Failed to convergence)
+            iter_max = 50;
+            
+            dL = 1e-6;
+            converged = false;
 
-                % Required heat transfer to cool the refrigerant down to the dew point
-                Q_req = obj.Model.Inlet.m_ref * (obj.Model.Inlet.h_ref_in - h_v);
+            % 3. Newton-Raphson loop
+            for iter = 1:iter_max
+                fprintf('Iteration %d: L_sh = %.6f m\n', iter, L_n);
 
-                % Step 4: Calculate actual capacity (Q_eNTU)
-                T_rm_sh = (obj.Model.Inlet.T_ref_in + T_sat_v) / 2;
-                rm_props = ThermoProp.get_SinglePhaseProps(P_out_sh, T_rm_sh, Refrig);
-                
-                % Actual heat transfer capacity using e-NTU method
-                Q_eNTU = obj.HeatTransfer_eNTU(w_sh, rm_props);
+                % Q_eNTU_sh from e-NTU method
+                Q_eNTU_sh = obj.HeatTransfer_eNTU(L_n, props);
 
-                % Step 5: Convergence check & Boundary update
-                Error = Q_eNTU - Q_req;
+                % The error between required heat transfer and e-NTU calculated heat transfer
+                f_Ln = Q_eNTU_sh - Q_req;
 
-                if abs(Error / Q_req) < tol
-                    fprintf('Convergence after %d loop, w_sh = %.2f%% with error = %.3f W\n', iter, w_sh * 100, Error);
+                % Check for convergence
+                if abs(f_Ln) < epsilon_tol
+                    converged = true;
                     break;
                 end
-                
-                % Bisection boundary update logic
-                if Error < 0
-                    % Actual < Target -> Under-sized -> Increase lower bound
-                    w_min = w_sh;
-                else
-                    % Actual > Target -> Over-sized -> Decrease uppper bound
-                    w_max = w_sh;
+
+                % Numerical derivative df/dL using central difference
+                f_Ln_plus = obj.HeatTransfer_eNTU(L_n + dL, props) - Q_req;
+                df_dLn = (f_Ln_plus - f_Ln) / dL;
+
+                % Avoid division by zero (Singularity)
+                if abs(df_dLn) < 1e-10
+                    df_dLn = sign(df_dLn) * 1e-10;
                 end
-            end % End of while loop
-            
+
+                % Update L_n using Newton-Raphson formula
+                L_next = L_n - f_Ln / df_dLn;
+
+                % Ensure L_next is within physical bounds [0, L_total]
+                if L_next < 0
+                    L_next = 0;
+                elseif L_next > L_total
+                    warning('Superheated region length exceeded total condenser length. Stopping iteration.');
+                    break;
+                end
+                L_n = L_next;
+            end
+
             if iter == iter_max
                 % Warning if the loop reachs the iteration limit without converging
                 warning('Superheated region FAILED to converge!');                
             end
+
+            L_sh = L_n;
+            % Calculate outlet pressure and pressure drop
+            rho_sh = props.rho;
+            mu_sh = props.mu;
+            dP_sh = obj.PressureDropSH(L_sh, rho_sh, mu_sh);
+            P_out_sh = P_ref_in - dP_sh;
+            % Saturated vapor temperature and enthalpy at outlet pressure
+            T_sat_v = ThermoProp.get_T_sat(P_out_sh, 1, Refrig);
+            h_v = ThermoProp.get_SatVaporProps(P_out_sh, Refrig).h_v;
         end
     end
 
     methods (Access = private)
 
         % Pressure drop
-        function dP_sh = PressureDropSH(obj, w_sh, rho, mu)
-            L_sh = w_sh * obj.Model.H_cond;
-            if L_sh <= 1e-6
-                dP_sh = 0; % No superheated region, so no pressure drop
-                return;
-            end
-
+        function dP_sh = PressureDropSH(obj, L_sh, rho, mu)
             % Reynolds number
             Re_Dh = obj.Model.G * obj.Model.D_h / mu;
 
             % Friction factor f
             f = 1 / (1.58 * log(Re_Dh) - 3.28)^2; % Turbulent flow
 
-
-            % Tube length of superheated region
-            L_sh = w_sh * obj.Model.H_cond;
-
             % Pressure drop dP_sh
             dP_sh = f * L_sh * (obj.Model.G^2) / (2 * obj.Model.D_h * rho);
         end
 
         % Heat transfer using e-NTU method
-        function Q_eNTU = HeatTransfer_eNTU(obj, w_sh, props)
-            L_sh = w_sh * obj.Model.H_cond;
-            if L_sh <= 1e-6
-                Q_eNTU = 0;
-                return;
-            end    
+        function Q_eNTU = HeatTransfer_eNTU(obj, L_sh, props)
+            w_sh = L_sh / obj.Model.W_cond; % Area fraction of superheated region
 
             % Air side
             % Specific heat capacity of air [J/kg.K]

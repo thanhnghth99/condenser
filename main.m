@@ -19,12 +19,12 @@ D_h = 0.00072; % m
 N_c = 19; % Number of channels
 N_t = 36; % Number of tubes
 A_channel = 5.4e-7; % m^2
-H_cond = 0.34; % m
+W_cond = 0.34; % m
 
 inlet_data = CondenserInlet(P_ref_in, T_ref_in, m_ref, A_tube_total, T_air_in, m_air_in, h_air, eta_o, A_surface_total);
 disp(inlet_data);
 
-cond_specs = CondenserModel(inlet_data, D_h, A_channel, N_c, N_t, H_cond);
+cond_specs = CondenserModel(inlet_data, D_h, A_channel, N_c, N_t, W_cond);
 disp(cond_specs);
 
 % SUPERHEATED (SH) REGION SIMULATION
@@ -32,14 +32,15 @@ disp(cond_specs);
 sh_solver = SuperheatedRegion(cond_specs);
 disp(sh_solver);
 
-[w_sh, P_out_sh, dP_sh, T_sat_v, h_v] = sh_solver.defineRegion();
+[L_sh, P_out_sh, dP_sh, T_sat_v, h_v, Q_eNTU_sh] = sh_solver.defineRegion();
 % Print the results to the console professionally
 fprintf('\n=== SUPERHEATED (SH) REGION SIMULATION RESULTS ===\n');
-fprintf('1. Area fraction (w_sh)            : %.2f %%\n', w_sh * 100);
-fprintf('2. Outlet pressure (P_out_sh)      : %.2f Pa\n', P_out_sh);
-fprintf('3. Pressure drop (dP_sh)           : %.2f Pa\n', dP_sh);
-fprintf('4. Saturated temperature (T_sat_v) : %.2f K\n', T_sat_v);
-fprintf('4. Saturated vapor enthalpy (h_v)  : %.2f J/kg\n', h_v);
+fprintf('1. Superheated region length (L_sh) : %.2f m\n', L_sh);
+fprintf('2. Outlet pressure (P_out_sh)       : %.2f MPa\n', P_out_sh * 1e-6);
+fprintf('3. Pressure drop (dP_sh)            : %.2f Pa\n', dP_sh);
+fprintf('4. Saturated temperature (T_sat_v)  : %.2f K\n', T_sat_v);
+fprintf('5. Saturated vapor enthalpy (h_v)   : %.2f J/kg\n', h_v);
+fprintf('6. Heat Transfer Capacity (Q_sh)    : %.2f W\n', Q_eNTU_sh);
 fprintf('==================================================\n\n');
 
 

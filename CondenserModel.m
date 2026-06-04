@@ -5,7 +5,7 @@ classdef CondenserModel
         N_c
         N_t
         A_channel
-        H_cond
+        W_cond
     end
 
     properties (SetAccess = protected)
@@ -14,13 +14,13 @@ classdef CondenserModel
     end
 
     methods
-        function obj = CondenserModel(Inlet, D_h, A_channel, N_c, N_t, H_cond)
+        function obj = CondenserModel(Inlet, D_h, A_channel, N_c, N_t, W_cond)
             obj.Inlet = Inlet;
             obj.D_h = D_h;
             obj.A_channel = A_channel;
             obj.N_c = N_c;
             obj.N_t = N_t;
-            obj.H_cond = H_cond;
+            obj.W_cond = W_cond;
             
             obj.G = obj.Inlet.m_ref / (A_channel * N_c * N_t);
         end
