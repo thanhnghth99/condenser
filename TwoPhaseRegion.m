@@ -43,7 +43,7 @@ classdef TwoPhaseRegion
             % Absolute tolerance for heat transfer error [w]
             epsilon_tol = 0.01;
             % Maximun iterations to prevent infinite loops (Failed to convergence)
-            iter_max = 2;
+            iter_max = 50;
             
             dL = 1e-5;
             converged = false;

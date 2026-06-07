@@ -66,11 +66,13 @@ classdef SubCooledRegion
                 % Laminar flow in rectangular flat tube
                 alpha = obj.Model.alpha;
 
-                f_lo = 4 * (24 / Re_l) * (1 - 1.3553*alpha + 1.9467*alpha^2 - 1.7012*alpha^3 + 0.9564*alpha^4 - 0.2537*alpha^5);
+                f_lo = (24 / Re_l) * (1 - 1.3553*alpha + 1.9467*alpha^2 - 1.7012*alpha^3 + 0.9564*alpha^4 - 0.2537*alpha^5);
             else
+                % f_lo = 1 / (1.58 * log(Re_l) - 3.28)^2;
                 f_lo = 0.079 * Re_l^(-0.25); % Turbulent friction factor
             end
             
+            % dP_sc = L_sc * f_lo * G^2 / (2 * rho_l * D_h);
             dP_sc = 2 * L_sc * f_lo * G^2 / (rho_l * D_h);
         end
 

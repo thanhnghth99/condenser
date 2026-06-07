@@ -76,8 +76,8 @@ fprintf('\n=== SUBCOOLED (SC) REGION SIMULATION RESULTS ===\n');
 fprintf('1. Subcooled region length (L_sc)       : %.4f m\n', L_sc);
 fprintf('2. Outlet pressure (P_out_sc)           : %.2f Pa\n', P_out_sc);
 fprintf('3. Subcooled temperature (T_sc_out)     : %.2f K\n', T_out_sc);
-fprintf('4. Pressure drop (dP_sc)                : %.2f J/kg\n', dP_sc);
-fprintf('5. Temperature drop (dT_sc)             : %.2f J/kg\n', dT_sc);
+fprintf('4. Pressure drop (dP_sc)                : %.2f Pa\n', dP_sc);
+fprintf('5. Temperature drop (dT_sc)             : %.2f K\n', dT_sc);
 fprintf('6. Heat Transfer Capacity (Q_sc)        : %.2f W\n', Q_eNTU_sc);
 fprintf('==================================================\n\n');
 
@@ -127,3 +127,5 @@ fprintf('\n>>> CROSS-CHECK VALIDATION:\n');
 fprintf('- Q calculated by Zone-by-Zone (e-NTU) : %.2f W\n', Q_total_condenser);
 fprintf('- Q calculated by Global Enthalpy Drop : %.2f W\n', Q_enthalpy_balance);
 fprintf('- Error difference                     : %.4f W\n', abs(Q_total_condenser - Q_enthalpy_balance));
+
+
