@@ -81,6 +81,9 @@ classdef SuperheatedRegion
                 elseif L_next >= L_total
                     warning('Superheated region length exceeded total condenser length. Setting to maximum possible length.');
                     L_next = 0.99 * L_total;
+                    if iter == iter_max
+                        L_next = L_total;
+                    end
                 end
                 L_n = L_next;
             end
@@ -112,8 +115,20 @@ classdef SuperheatedRegion
             % Reynolds number
             Re_Dh = obj.Model.G * obj.Model.D_h / mu;
 
-            % Friction factor f
-            f = 1 / (1.58 * log(Re_Dh) - 3.28)^2; % Turbulent flow
+            % % Friction factor f
+            % f = 1 / (1.58 * log(Re_Dh) - 3.28)^2; % Turbulent flow
+            % fprintf('f = %.4f\n', f)
+
+            if Re_Dh < 2300
+                % Laminar flow in rectangular flat tube
+                alpha = obj.Model.alpha;
+
+                f = 4 * (24 / Re_Dh) * (1 - 1.3553*alpha + 1.9467*alpha^2 - 1.7012*alpha^3 + 0.9564*alpha^4 - 0.2537*alpha^5);
+                fprintf('f laminar = %.4f\n', f)
+            else
+                f = 1 / (1.58 * log(Re_Dh) - 3.28)^2; % Turbulent flow
+                fprintf('f turbulent = %.4f\n', f)
+            end
 
             % Pressure drop dP_sh
             dP_sh = f * L_sh * (obj.Model.G^2) / (2 * obj.Model.D_h * rho);

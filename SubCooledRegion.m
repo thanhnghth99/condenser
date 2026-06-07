@@ -64,12 +64,7 @@ classdef SubCooledRegion
 
             if Re_l < 2300
                 % Laminar flow in rectangular flat tube
-                W_w = obj.Model.W_w;
-                W_c = obj.Model.W_c;
-
-                a_channel = min(W_w, W_c);
-                b_channel = max(W_w, W_c);
-                alpha = a_channel / b_channel;
+                alpha = obj.Model.alpha;
 
                 f_lo = 4 * (24 / Re_l) * (1 - 1.3553*alpha + 1.9467*alpha^2 - 1.7012*alpha^3 + 0.9564*alpha^4 - 0.2537*alpha^5);
             else
@@ -105,12 +100,7 @@ classdef SubCooledRegion
 
             % Heat transfer coefficient for liquid phase (h_l)
             if Re_l < 2300
-                W_w = obj.Model.W_w;
-                W_c = obj.Model.W_c;
-
-                a_channel = min(W_w, W_c);
-                b_channel = max(W_w, W_c);
-                alpha = a_channel / b_channel;
+                alpha = obj.Model.alpha;
 
                 % Nusselt number (Shah and London, 1978) for laminar flow in rectangular channels
                 Nu_l = 7.541 * (1 - 2.610*alpha + 4.970*alpha^2 - 5.119*alpha^3 + 2.702*alpha^4 - 0.548*alpha^5);

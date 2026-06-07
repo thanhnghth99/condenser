@@ -43,7 +43,7 @@ classdef TwoPhaseRegion
             % Absolute tolerance for heat transfer error [w]
             epsilon_tol = 0.01;
             % Maximun iterations to prevent infinite loops (Failed to convergence)
-            iter_max = 50;
+            iter_max = 2;
             
             dL = 1e-5;
             converged = false;
@@ -100,6 +100,9 @@ classdef TwoPhaseRegion
                 elseif L_next >= L_avail
                     warning('Two-phase region length exceeded total condenser length. Setting to maximum possible length.');
                     L_next = 0.99 * L_avail;
+                    if iter == iter_max
+                        L_next = L_avail;
+                    end
                 end
 
                 L_n = L_next;
@@ -142,12 +145,7 @@ classdef TwoPhaseRegion
 
             % Heat transfer coefficient for liquid phase (h_l)
             if Re_l < 2300
-                W_w = obj.Model.W_w;
-                W_c = obj.Model.W_c;
-
-                a_channel = min(W_w, W_c);
-                b_channel = max(W_w, W_c);
-                alpha = a_channel / b_channel;
+                alpha = obj.Model.alpha;
 
                 % Nusselt number (Shah and London, 1978) for laminar flow in rectangular channels
                 Nu_l = 7.541 * (1 - 2.610*alpha + 4.970*alpha^2 - 5.119*alpha^3 + 2.702*alpha^4 - 0.548*alpha^5);

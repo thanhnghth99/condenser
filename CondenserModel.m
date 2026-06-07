@@ -13,6 +13,9 @@ classdef CondenserModel
     properties (SetAccess = protected)
         % Mass flux of refrigerant [kg/m^2.s]
         G
+
+        % Aspect ratio
+        alpha
     end
 
     methods
@@ -27,6 +30,10 @@ classdef CondenserModel
             obj.W_cond = W_cond;
             
             obj.G = obj.Inlet.m_ref / (A_channel * N_c * N_t);
+            
+            a_channel = min(obj.W_w, obj.W_c);
+            b_channel = max(obj.W_w, obj.W_c);
+            obj.alpha = a_channel / b_channel;
         end
 
         function UA = UA(obj, w_i, h_ref_i)

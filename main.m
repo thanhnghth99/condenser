@@ -83,16 +83,16 @@ fprintf('==================================================\n\n');
 
 
 % =========================================================================
-% TỔNG KẾT TOÀN BỘ DÀN NGƯNG (OVERALL CONDENSER PERFORMANCE)
+% OVERALL CONDENSER PERFORMANCE
 % =========================================================================
 
-% 1. Tính tổng công suất truyền nhiệt
+% 1. Total Heat transfer capacity
 Q_total_condenser = Q_eNTU_sh + Q_eNTU_tp + Q_eNTU_sc;
 
-% 2. Tính tổng tổn thất áp suất (Total Pressure Drop)
-dP_total = dP_sh + (P_out_sh - P_out_tp) + dP_sc; % Vùng 2 pha coi như dP ~ 0 hoặc lấy P_in - P_out
+% 2. Total Pressure Drop
+dP_total = dP_sh + (P_out_sh - P_out_tp) + dP_sc; % dP_tp ~ 0 or P_in - P_out
 
-% In kết quả ra màn hình
+% Print the results to the console professionally
 fprintf('\n==================================================\n');
 fprintf('    OVERALL CONDENSER PERFORMANCE SUMMARY\n');
 fprintf('==================================================\n');
@@ -103,18 +103,27 @@ fprintf('4. Final Outlet Pressure               : %.2f Pa\n', P_out_sc);
 fprintf('==================================================\n\n');
 
 
-% KIỂM TRA CHÉO BẰNG CÂN BẰNG ENTHALPY
-% Lấy enthalpy tại cổng vào dàn ngưng
+% CROSS-CHECK USING ENTHALPY BALANCE
+% Get total enthalpy at the condenser inlet
 h_in_total = inlet_data.h_ref_in;
 
-% Tính enthalpy tại cổng ra cuối cùng (trạng thái lỏng quá lạnh)
-props_out_final = ThermoProp.get_SinglePhaseProps(P_out_sc, T_out_sc, Refrigerant);
-h_out_final = props_out_final.h;
+% SAFE CALCULATION OF OUTLET ENTHALPY (h_out_final)
+if L_sc <= 1e-5
+    % Case 1: Incomplete condensation (Outlet state is a two-phase mixture)
+    % Outlet enthalpy = Saturated vapor enthalpy - Heat rejected in the two-phase region
+    h_out_final = h_sat_v - (Q_eNTU_tp / m_ref);
+else
+    % Case 2: Successful liquid subcooling (Subcooled liquid state)
+    % Use safe linear approximation: h_out = h_sat_l - cp_l * dT_sc
+    props_single = ThermoProp.get_SinglePhaseProps(P_out_sc, T_sat - 0.5, Refrigerant);
+    cp_l = props_single.cp;
+    h_out_final = h_sat_l - cp_l * (T_sat - T_out_sc);
+end
 
-% Tính tổng nhiệt lượng theo cân bằng năng lượng vĩ mô
+% Calculate total heat transfer based on macroscopic energy balance
 Q_enthalpy_balance = m_ref * (h_in_total - h_out_final);
 
-fprintf('>> CROSS-CHECK VALIDATION:\n');
+fprintf('\n>>> CROSS-CHECK VALIDATION:\n');
 fprintf('- Q calculated by Zone-by-Zone (e-NTU) : %.2f W\n', Q_total_condenser);
 fprintf('- Q calculated by Global Enthalpy Drop : %.2f W\n', Q_enthalpy_balance);
 fprintf('- Error difference                     : %.4f W\n', abs(Q_total_condenser - Q_enthalpy_balance));
