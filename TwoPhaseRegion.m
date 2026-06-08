@@ -20,15 +20,12 @@ classdef TwoPhaseRegion
             T_sat = ThermoProp.get_T_sat(P_in_tp, 1, Refrig);
 
             h_sat_v = ThermoProp.get_SatVaporProps(P_in_tp, Refrig).h_v;
-            fprintf('h_sat_v: %.2f J/kg\n', h_sat_v);
             h_sat_l = ThermoProp.get_SatLiquidProps(P_in_tp, Refrig).h_l;
-            fprintf('h_sat_l: %.2f J/kg\n\n', h_sat_l);
 
             props = ThermoProp.get_SatLiquidProps(P_in_tp, Refrig);
 
             % 1. Required rejected heat transfer rate completely liquid condensation (Q_req)
             Q_req = m_ref * (h_sat_v- h_sat_l);
-            fprintf('Q_req: %.2f W\n\n', Q_req);
 
             % 2. Initial guess for Newton-Raphson method
             L_total = obj.Model.W_cond;
@@ -43,7 +40,7 @@ classdef TwoPhaseRegion
             % Absolute tolerance for heat transfer error [w]
             epsilon_tol = 0.01;
             % Maximun iterations to prevent infinite loops (Failed to convergence)
-            iter_max = 50;
+            iter_max = 25;
             
             dL = 1e-5;
             converged = false;
@@ -51,14 +48,11 @@ classdef TwoPhaseRegion
             %  3. Newton-Raphson loop
             for iter = 1:iter_max
                 fprintf('Iteration %d: L_n = %.6f m\n', iter, L_n);
-
                 % Q_eNTU_n from e-NTU method
                 Q_eNTU_n = obj.HeatTransfer_eNTU(L_n, P_in_tp, T_sat, props);
-                fprintf('Q_eNTU_n: %.2f W\n', Q_eNTU_n);
 
                 % The error between required heat transfer and e-NTU calculated heat transfer
                 f_Ln = Q_eNTU_n - Q_req;
-                fprintf('f_Ln: %.2f W\n', f_Ln);
 
                 % Check for convergence
                 if abs(f_Ln) < epsilon_tol
@@ -68,20 +62,15 @@ classdef TwoPhaseRegion
 
                 % Numerical derivative df/dL using central difference
                 Ln_plus = L_n + dL;
-                fprintf('Ln_plus: %.6f m\n', Ln_plus);
 
                 % Ensure Ln_plus and Ln_minus are within physical bounds to avoid unphysical results
                 if Ln_plus >= L_avail
                     Ln_minus = L_n - dL;
                     f_Ln_minus = obj.HeatTransfer_eNTU(Ln_minus, P_in_tp, T_sat, props) - Q_req;
                     df_dLn = (f_Ln - f_Ln_minus) / dL;
-                    fprintf('Using BACKWARD difference: Ln_minus = %.6f m, f_Ln_minus = %.2f W\n', Ln_minus, f_Ln_minus);
-                    fprintf('df_dLn: %.2f W/m\n', df_dLn);
                 else
                     f_Ln_plus = obj.HeatTransfer_eNTU(Ln_plus, P_in_tp, T_sat, props) - Q_req;
                     df_dLn = (f_Ln_plus - f_Ln) / dL;
-                    fprintf('Using FORWARD difference: Ln_plus = %.6f m, f_Ln_plus = %.2f W\n', Ln_plus, f_Ln_plus);
-                    fprintf('df_dLn: %.2f W/m\n', df_dLn);
                 end
 
                 % Avoid division by zero (Singularity)
@@ -91,7 +80,6 @@ classdef TwoPhaseRegion
 
                 % Update L_n using Newton-Raphson formula
                 L_next = L_n - f_Ln / df_dLn;
-                fprintf('L_next (before bounds check): %.6f m\n', L_next);
 
                 % Ensure L_next is within physical bounds [0, L_avail]
                 if L_next <= 0
@@ -140,8 +128,6 @@ classdef TwoPhaseRegion
             % Reynolds number assuming all the mass flowing as liquid
             D_h = obj.Model.D_h;
             Re_l = obj.Model.G * D_h / props.mu_l;
-            fprintf('Re_l: %.2f\n', Re_l);
-            fprintf('mu_l: %.5e Pa.s\n', props.mu_l);
 
             % Heat transfer coefficient for liquid phase (h_l)
             if Re_l < 2300
@@ -153,9 +139,6 @@ classdef TwoPhaseRegion
                 Nu_l = 0.023 * (Re_l^0.8) * (props.Pr_l^0.4); % Turbulent flow (Dittus-Boelter)
             end
 
-            fprintf('props.Pr_l: %.4f\n', props.Pr_l);
-            fprintf('Nu_l: %.2f\n', Nu_l);
-            fprintf('k_l: %.6f W/m.K\n', props.k_l);
             h_l = Nu_l * (props.k_l / D_h);
 
             P_crit = 4.0593e6; % Critical pressure of R134a [Pa]
@@ -165,13 +148,8 @@ classdef TwoPhaseRegion
             h_tpm = h_l * (0.55 + 2.09 / P_r^0.38); % Empirical correlation for two-phase flow
 
             UA_tp = obj.Model.UA(w_tp, h_tpm);
-            fprintf('L_tp: %.4f\n', L_tp);
-            fprintf('w_tp: %.4f\n', w_tp);
-            fprintf('UA_tp: %.4f\n', UA_tp);
             NTU_tp = UA_tp / C_air;
-            fprintf('NTU_tp: %.4f\n', NTU_tp);
             epsilon = 1 - exp(-NTU_tp);
-            fprintf('epsilon: %.4f\n', epsilon);
             % Calculate the actual heat transfer
             Q_eNTU = epsilon * C_air * (T_sat - T_air_in);
         end

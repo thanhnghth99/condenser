@@ -40,13 +40,11 @@ classdef CondenserModel
             % Thermal resistance
             A_tube_total = obj.Inlet.A_tube_total;
             R_ref = 1 / (h_ref_i * A_tube_total);
-            fprintf('R_ref: %.4f\n', R_ref);
 
             h_air = obj.Inlet.h_air;
             A_surface_total = obj.Inlet.A_surface_total;
             eta_o = obj.Inlet.eta_o;
             R_air = 1 / (h_air * A_surface_total * eta_o);
-            fprintf('R_air: %.4f\n', R_air);
 
             UA = w_i / (R_ref + R_air);            
         end

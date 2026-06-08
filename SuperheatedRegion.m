@@ -32,7 +32,7 @@ classdef SuperheatedRegion
             % Absolute tolerance for heat transfer error [w]
             epsilon_tol = 0.01;
             % Maximun iterations to prevent infinite loops (Failed to convergence)
-            iter_max = 50;
+            iter_max = 10;
             
             dL = 1e-5;
             converged = false;
@@ -124,10 +124,8 @@ classdef SuperheatedRegion
                 alpha = obj.Model.alpha;
 
                 f = 4 * (24 / Re_Dh) * (1 - 1.3553*alpha + 1.9467*alpha^2 - 1.7012*alpha^3 + 0.9564*alpha^4 - 0.2537*alpha^5);
-                fprintf('f laminar = %.4f\n', f)
             else
                 f = 1 / (1.58 * log(Re_Dh) - 3.28)^2; % Turbulent flow
-                fprintf('f turbulent = %.4f\n', f)
             end
 
             % Pressure drop dP_sh
