@@ -63,16 +63,14 @@ classdef SubCooledRegion
             rho_l = props_sat.rho_l;
 
             if Re_l < 2300
-                % Laminar flow in rectangular flat tube
+                % Laminar flow in rectangular flat tube (Fanning friction factor)
                 alpha = obj.Model.alpha;
-
                 f_lo = (24 / Re_l) * (1 - 1.3553*alpha + 1.9467*alpha^2 - 1.7012*alpha^3 + 0.9564*alpha^4 - 0.2537*alpha^5);
             else
-                % f_lo = 1 / (1.58 * log(Re_l) - 3.28)^2;
                 f_lo = 0.079 * Re_l^(-0.25); % Turbulent friction factor
             end
             
-            % dP_sc = L_sc * f_lo * G^2 / (2 * rho_l * D_h);
+            % Pressure drop (Using Fanning friction factor)
             dP_sc = 2 * L_sc * f_lo * G^2 / (rho_l * D_h);
         end
 
@@ -103,7 +101,6 @@ classdef SubCooledRegion
             % Heat transfer coefficient for liquid phase (h_l)
             if Re_l < 2300
                 alpha = obj.Model.alpha;
-
                 % Nusselt number (Shah and London, 1978) for laminar flow in rectangular channels
                 Nu_l = 7.541 * (1 - 2.610*alpha + 4.970*alpha^2 - 5.119*alpha^3 + 2.702*alpha^4 - 0.548*alpha^5);
             else

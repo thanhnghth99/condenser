@@ -115,20 +115,16 @@ classdef SuperheatedRegion
             % Reynolds number
             Re_Dh = obj.Model.G * obj.Model.D_h / mu;
 
-            % % Friction factor f
-            % f = 1 / (1.58 * log(Re_Dh) - 3.28)^2; % Turbulent flow
-            % fprintf('f = %.4f\n', f)
-
+            % % Friction factor f (Darcy friction factor)
             if Re_Dh < 2300
                 % Laminar flow in rectangular flat tube
                 alpha = obj.Model.alpha;
-
                 f = 4 * (24 / Re_Dh) * (1 - 1.3553*alpha + 1.9467*alpha^2 - 1.7012*alpha^3 + 0.9564*alpha^4 - 0.2537*alpha^5);
             else
-                f = 1 / (1.58 * log(Re_Dh) - 3.28)^2; % Turbulent flow
+                f = 1 / (0.79 * log(Re_Dh) - 1.64)^2; % Turbulent flow
             end
 
-            % Pressure drop dP_sh
+            % Pressure drop dP_sh (Using Darcy friction factor)
             dP_sh = f * L_sh * (obj.Model.G^2) / (2 * obj.Model.D_h * rho);
         end
 
@@ -169,12 +165,19 @@ classdef SuperheatedRegion
             % Thermal conductivity
             k_sh = props.k;
 
-            % Friction factor f
-            f = 1 / (1.58 * log(Re_Dh) - 3.28)^2;
-            % Refrigerant heat transfer coefficient h_sh [W/m^2.K]
-            numerator = (f / 2) * Re_Dh * Pr_sh;
-            denominator = 1.07 + 12.7 * (f / 2)^0.5 * (Pr_sh^(2/3) - 1);
-            h_sh = (numerator / denominator) * (k_sh / D_h);
+            if Re_Dh < 2300
+                % Laminar flow in rectangular flat tube (Shah & London)
+                alpha = obj.Model.alpha;
+                Nu_sh = 7.541 * (1 - 2.610*alpha + 4.970*alpha^2 - 5.119*alpha^3 + 2.702*alpha^4 - 0.548*alpha^5);
+            else
+                f = 1 / (0.79 * log(Re_Dh) - 1.64)^2; % Turbulent flow (Darcy friction factor)
+                numerator = (f / 8) * Re_Dh * Pr_sh;
+                denominator = 1.07 + 12.7 * (f / 8)^0.5 * (Pr_sh^(2/3) - 1);
+                Nu_sh = numerator / denominator; % Nusselt number
+            end
+
+            % Refrigerant heat transfer coefficient h_sh [W/m^2.K] 
+            h_sh = Nu_sh * (k_sh / D_h);
 
 
             UA_sh = obj.Model.UA(w_sh, h_sh);
