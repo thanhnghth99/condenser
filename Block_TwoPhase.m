@@ -36,7 +36,7 @@ function [L_tp, P_out_tp, T_sat, h_sat_l, Q_tp] = Block_TwoPhase(L_sh, P_in_tp, 
     %  3. Newton-Raphson loop
     for iter = 1:iter_max
         % Q_eNTU_n from e-NTU method
-        Q_eNTU_n = HeatTransfer_eNTU_TP(L_n, P_in_tp, T_sat, m_air_in, T_air_in, mu_l, k_l, Pr_l, D_h, alpha, W_cond, A_tube_total, h_air, A_surface_total, eta_o, G);
+        Q_eNTU_n = HeatTransfer_eNTU_TP(L_n, P_in_tp, T_sat, m_air_in, T_air_in, mu_l, k_l, Pr_l, D_h, alpha, W_cond, A_tube_total, h_air, A_surface_total, eta_o, G, m_ref, Refrig);
         % The error between required heat transfer and e-NTU calculated heat transfer
         f_Ln = Q_eNTU_n - Q_req;
 
@@ -51,10 +51,10 @@ function [L_tp, P_out_tp, T_sat, h_sat_l, Q_tp] = Block_TwoPhase(L_sh, P_in_tp, 
         % Ensure Ln_plus and Ln_minus are within physical bounds to avoid unphysical results
         if Ln_plus >= L_avail
             Ln_minus = L_n - dL;
-            f_Ln_minus = HeatTransfer_eNTU_TP(Ln_minus, P_in_tp, T_sat, m_air_in, T_air_in, mu_l, k_l, Pr_l, D_h, alpha, W_cond, A_tube_total, h_air, A_surface_total, eta_o, G) - Q_req;
+            f_Ln_minus = HeatTransfer_eNTU_TP(Ln_minus, P_in_tp, T_sat, m_air_in, T_air_in, mu_l, k_l, Pr_l, D_h, alpha, W_cond, A_tube_total, h_air, A_surface_total, eta_o, G, m_ref, Refrig) - Q_req;
             df_dLn = (f_Ln - f_Ln_minus) / dL;
         else
-            f_Ln_plus = HeatTransfer_eNTU_TP(Ln_plus, P_in_tp, T_sat, m_air_in, T_air_in, mu_l, k_l, Pr_l, D_h, alpha, W_cond, A_tube_total, h_air, A_surface_total, eta_o, G) - Q_req;
+            f_Ln_plus = HeatTransfer_eNTU_TP(Ln_plus, P_in_tp, T_sat, m_air_in, T_air_in, mu_l, k_l, Pr_l, D_h, alpha, W_cond, A_tube_total, h_air, A_surface_total, eta_o, G, m_ref, Refrig) - Q_req;
             df_dLn = (f_Ln_plus - f_Ln) / dL;
         end
 
@@ -85,14 +85,24 @@ function [L_tp, P_out_tp, T_sat, h_sat_l, Q_tp] = Block_TwoPhase(L_sh, P_in_tp, 
 end
 
 % Heat transfer function using e-NTU method
-function Q_eNTU = HeatTransfer_eNTU_TP(L_tp, P, T_sat, m_air_in, T_air_in, mu_l, k_l, Pr_l, D_h, alpha, W_cond, A_tube_total, h_air, A_surface_total, eta_o, G)
+function Q_eNTU_total = HeatTransfer_eNTU_TP(L_tp, P, T_sat, m_air_in, T_air_in, mu_l, k_l, Pr_l, D_h, alpha, W_cond, A_tube_total, h_air, A_surface_total, eta_o, G, m_ref, Refrig)
     if L_tp <= 1e-6
-        Q_eNTU = 0;
+        Q_eNTU_total = 0;
         return;
     end
+
+    dL_max = 0.05; % Maximum allowed length for one segment (e.g., 5 cm)
+    
+    % Dynamically calculate number of zones based on current L_tp
+    % Ensure there is always at least 3 zones for stable integration
+    N_tp = max(3, ceil(L_tp / dL_max));
+    dL_tp = L_tp / N_tp; % Actual length of each segment
     
     % Area fraction of the two-phase region
-    w_tp = L_tp / W_cond;
+    w_tp = dL_tp / W_cond;
+    % Local heat transfer area for one segment
+    A_tube_tp = w_tp * A_tube_total;
+    A_surf_tp = w_tp * A_surface_total;
 
     % Air side
     cp_air = 1005;
@@ -115,18 +125,44 @@ function Q_eNTU = HeatTransfer_eNTU_TP(L_tp, P, T_sat, m_air_in, T_air_in, mu_l,
     P_crit = 4.0593e6;
     P_r = P / P_crit;
 
-    % Refrigerant heat transfer coefficient h_tpm [W/m^2.K]
-    h_tpm = h_l * (0.55 + 2.09 / P_r^0.38);
+    h_sat_v = py.CoolProp.CoolProp.PropsSI('H', 'P', P, 'Q', 1, Refrig);
+    h_sat_l = py.CoolProp.CoolProp.PropsSI('H', 'P', P, 'Q', 0, Refrig);
+    h_fg = h_sat_v - h_sat_l;
 
-    R_ref = 1 / (h_tpm * A_tube_total);
-    R_air = 1 / (h_air * A_surface_total * eta_o);
-    UA_tp = w_tp / (R_ref + R_air);
+    x_current = 1.0; % At the two-phase inlet, refrigerant is saturated vapor (x = 1)
+    Q_eNTU_total = 0; % Accumulator for total heat transfer
 
-    if C_air > 0
-        NTU_tp = UA_tp / C_air;
-        epsilon = 1 - exp(-NTU_tp);
-        Q_eNTU = epsilon * C_air * (T_sat - T_air_in);
-    else
-        Q_eNTU = 0;
+    for i = 1:N_tp
+        % Safety limit: Ensure x_current stays within [0, 1] bounds
+        x_current = max(0, min(1, x_current));
+        
+        % If refrigerant is completely condensed (x = 0) before the end of the tube, break
+        if x_current == 0
+            break; 
+        end
+
+        % a. Calculate local two-phase heat transfer coefficient (h_tpm) based on x_current
+        term1 = (1 - x_current)^0.8;
+        term2 = (3.8 * x_current^0.76 * max(1 - x_current, 1e-10)^0.04) / (P_r^0.38);
+        h_tp_local = h_l * (term1 + term2);
+
+        % b. Calculate heat transfer for this specific segment
+        R_ref_tp = 1 / (h_tp_local * A_tube_tp);
+        R_air_tp = 1 / (h_air * A_surf_tp * eta_o);
+        UA_tp = 1 / (R_ref_tp + R_air_tp);
+
+        if C_air > 0
+            NTU_tp = UA_tp / C_air;
+            epsilon_tp = 1 - exp(-NTU_tp);
+            Q_tp = epsilon_tp * C_air * (T_sat - T_air_in);
+        else
+            Q_tp = 0;
+        end
+
+        % c. Accumulate segment heat transfer to the total
+        Q_eNTU_total = Q_eNTU_total + Q_tp;
+
+        % d. Update vapor quality (x) for the next segment (Heat loss -> Further condensation)
+        x_current = x_current - (Q_tp / (m_ref * h_fg));
     end
 end

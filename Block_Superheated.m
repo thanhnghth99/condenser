@@ -1,4 +1,4 @@
-function [L_sh, P_out_sh, dP_sh, dP_entrance, T_sat_v, h_sat_v, Q_sh] = Block_Superheated(P_ref_in, T_ref_in, m_ref, T_air_in, m_air_in, h_air, D_h, alpha, W_cond, A_tube_total, A_surface_total, eta_o, G, sigma)
+function [L_sh, P_out_sh, dP_sh_total, dP_entrance, T_sat_v, h_sat_v, Q_sh] = Block_Superheated(P_ref_in, T_ref_in, m_ref, T_air_in, m_air_in, h_air, D_h, alpha, W_cond, A_tube_total, A_surface_total, eta_o, G, sigma)
     % coder.extrinsic('py.CoolProp.CoolProp.PropsSI');
     Refrig = 'R134a';
     
@@ -86,6 +86,7 @@ function [L_sh, P_out_sh, dP_sh, dP_entrance, T_sat_v, h_sat_v, Q_sh] = Block_Su
     dP_entrance = PressureDrop_entrance(P_ref_in, T_ref_in, Refrig, D_h, G, sigma);
 
     % 6. Total pressure drop of superheated region
+    dP_sh_total = dP_entrance + dP_sh;
     P_out_sh = P_ref_in - dP_sh - dP_entrance;
 end
 
@@ -109,8 +110,6 @@ function dP_entrance = PressureDrop_entrance(P_ref_in, T_ref_in, Refrig, D_h, G,
         % Interpolation for Kc corresponding sigma
         Kc_interp = interp1(sigma_turb_array, Kc_turb_array, sigma, 'linear');
     end
-
-    disp(Kc_interp);
 
     % Pressure drop due to minor losses
     dP_entrance = (G^2 / (2*rho_in)) * (1 - sigma^2 + Kc_interp);

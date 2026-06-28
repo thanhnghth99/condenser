@@ -4,7 +4,7 @@ clc;
 Refrigerant = 'R134a';
 P_ref_in = 1569064; % Pa
 T_ref_in = 355.1500; % K
-m_ref = 0.0150; % kg/s --> 900 - 1000 rpm
+m_ref = 0.0227; % kg/s --> 900 - 1000 rpm
 A_tube_total = 0.6977; % m^2
 
 % Air side
@@ -43,13 +43,13 @@ h_ref_in = py.CoolProp.CoolProp.PropsSI('H', 'P', P_ref_in, 'T', T_ref_in, Refri
 
 % --- SUPERHEATED (SH) REGION SIMULATION ---
 disp('Running Superheated Block...');
-[L_sh, P_out_sh, dP_sh, dP_entrance, T_sat_v, h_sat_v, Q_eNTU_sh] = Block_Superheated(...
+[L_sh, P_out_sh, dP_sh_total, dP_entrance, T_sat_v, h_sat_v, Q_eNTU_sh] = Block_Superheated(...
     P_ref_in, T_ref_in, m_ref, T_air_in, m_air_in, h_air, D_h, alpha, W_cond, A_tube_total, A_surface_total, eta_o, G, sigma);
 
 fprintf('\n=== SUPERHEATED (SH) REGION SIMULATION RESULTS ===\n');
 fprintf('1. Superheated region length (L_sh)     : %.4f m\n', L_sh);
 fprintf('2. Outlet pressure (P_out_sh)           : %.2f Pa\n', P_out_sh);
-fprintf('3. Pressure drop (dP_sh)                : %.2f Pa\n', dP_sh);
+fprintf('3. Pressure drop (dP_sh)                : %.2f Pa\n', dP_sh_total);
 fprintf('3. Minor losses at entrance (dP_entrance)   : %.2f Pa\n', dP_entrance);
 fprintf('4. Saturated temperature (T_sat_v)      : %.2f K\n', T_sat_v);
 fprintf('5. Saturated vapor enthalpy (h_sat_v)   : %.2f J/kg\n', h_sat_v);
@@ -95,7 +95,7 @@ fprintf('==================================================\n\n');
 Q_total_condenser = Q_eNTU_sh + Q_eNTU_tp + Q_eNTU_sc;
 
 % 2. Total Pressure Drop
-dP_total = dP_sh + (P_out_sh - P_out_tp) + dP_sc; % dP_tp ~ 0 or P_in - P_out
+dP_total = dP_sh_total + (P_out_sh - P_out_tp) + dP_sc; % dP_tp ~ 0 or P_in - P_out
 
 % Print the results to the console professionally
 fprintf('\n==================================================\n');
